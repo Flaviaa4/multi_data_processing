@@ -30,6 +30,26 @@ KEY_COLUMNS = [
     TARGET,
 ]
 
+AMOUNT_BANDS = ["Low", "Mid-low", "Mid-high", "High"]
+NUMERIC_FEATURES = [
+    "purchase_amount",
+    "customer_rating",
+    "customer_txn_count",
+    "customer_avg_amount",
+    "customer_avg_rating",
+    *SOCIAL_SCORES,
+    "social_post_count",
+]
+CATEGORICAL_FEATURES = [
+    "purchase_month",
+    "purchase_dayofweek",
+    "amount_band",
+    *SOCIAL_CATEGORICAL,
+]
+BOOLEAN_FEATURES = ["is_weekend", "has_social_data", "rating_missing"]
+FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES + BOOLEAN_FEATURES
+ID_COLUMNS = ["transaction_id", KEY, "purchase_date"]
+
 
 def load_raw() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return the raw social and transactions tables."""
@@ -131,3 +151,53 @@ def load_and_merge() -> pd.DataFrame:
     merged = merge_social(transactions, aggregate_social(clean_social(social_raw)))
     validate_merge(merged, transactions)
     return merged
+
+
+def add_date_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Month, day of week (Monday is 0) and a weekend flag from purchase_date."""
+    df = df.copy()
+    df["purchase_month"] = df["purchase_date"].dt.month
+    df["purchase_dayofweek"] = df["purchase_date"].dt.dayofweek
+    df["is_weekend"] = df["purchase_dayofweek"].ge(5)
+    return df
+
+
+def add_amount_band(df: pd.DataFrame) -> pd.DataFrame:
+    """Quartile band of purchase_amount, labelled Low to High."""
+    df = df.copy()
+    df["amount_band"] = pd.qcut(df["purchase_amount"], q=len(AMOUNT_BANDS), labels=AMOUNT_BANDS).astype(str)
+    return df
+
+
+def add_customer_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-customer transaction count, mean amount and mean rating, repeated on each row.
+
+    These never look at product_category, and because the split is grouped by
+    customer, a test customer's aggregates come only from that customer's own rows.
+    """
+    df = df.copy()
+    by_customer = df.groupby(KEY)
+    df["customer_txn_count"] = by_customer["transaction_id"].transform("size")
+    df["customer_avg_amount"] = by_customer["purchase_amount"].transform("mean")
+    df["customer_avg_rating"] = by_customer["customer_rating"].transform("mean")
+    return df
+
+
+def build_features(merged: pd.DataFrame) -> pd.DataFrame:
+    """Add every engineered feature and return ids, features and target in a fixed order."""
+    featured = add_customer_features(add_amount_band(add_date_features(merged)))
+    return featured[ID_COLUMNS + FEATURES + [TARGET]]
+
+
+def build_dataset() -> pd.DataFrame:
+    """Rebuild the model-ready dataset from the raw files."""
+    return build_features(load_and_merge())
+
+
+def save_dataset(dataset: pd.DataFrame) -> None:
+    MERGED_PATH.parent.mkdir(parents=True, exist_ok=True)
+    dataset.to_csv(MERGED_PATH, index=False)
+
+
+def load_dataset() -> pd.DataFrame:
+    return pd.read_csv(MERGED_PATH, parse_dates=["purchase_date"])
