@@ -14,9 +14,9 @@ If either check fails, access is denied and no prediction is made.
 
 | Member | Responsibility | Branch |
 |---|---|---|
-| Name 1 | Tabular data, product model, CLI app | `feature/tabular` |
-| Name 2 | Image processing, face model | `feature/image` |
-| Name 3 | Audio processing, voice model | `feature/audio` |
+| Flavienne | Tabular data, product model, CLI app | `feature/tabular` |
+| Shakira | Image processing, face model | `feature/image` |
+| Placide | Audio processing, voice model | `feature/audio` |
 
 ## Setup
 
