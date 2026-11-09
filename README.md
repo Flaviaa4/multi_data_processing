@@ -116,8 +116,8 @@ The voice check is the last step before a prediction is shown: the customer says
 
 | File | Speaker | Phrase |
 |---|---|---|
-| `audio_pipeline/data/audio/flav1.mp4`, `flav2.mp4` | flav | "Yes, approve", "Confirm transaction" |
-| `audio_pipeline/data/audio/plac1.mp4`, `plac2.mp4` | plac | "Yes, approve", "Confirm transaction" |
+| `audio_pipeline/data/audio/flav1.mp4`, `flav2.mp4` | flavienne | "Yes, approve", "Confirm transaction" |
+| `audio_pipeline/data/audio/plac1.mp4`, `plac2.mp4` | Placide | "Yes, approve", "Confirm transaction" |
 | `audio_pipeline/data/audio/shakira 1.mp4`, `shakira 2.mp4` | shakira | "Yes, approve", "Confirm transaction" |
 | `audio_pipeline/data/audio/unauthorized/unauthorized_friend_approve.mp4`, `..._confirm.mp4` | someone outside the group | both phrases, for the unauthorized test |
 
