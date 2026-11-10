@@ -166,9 +166,86 @@ recognition threshold is `0.60`.
 
 ## 3. Audio processing and voice model
 
-To be completed by the audio processing owner.
+The voice model is bundled under `audio_pipeline/` and verifies both
+classifier confidence and distance from the member's genuine recordings.
+The repository recordings are MP4 files under `audio_pipeline/data/audio/`;
+the audio track is converted to 16 kHz mono WAV by FFmpeg when the CLI runs.
 
-## 4. CLI app
+Install the Python dependencies from the repository root:
 
-To be completed. The app will run the face check, then the voice check, and call `predict_product(user_id)` for verified customers.
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
+FFmpeg is also required for MP4 input. On Windows, install it with:
+
+```powershell
+winget install --id Gyan.FFmpeg.Shared -e
+```
+
+Close and reopen PowerShell after installation, then verify:
+
+```powershell
+ffmpeg -version
+```
+
+## 4. CLI and transaction demo
+
+The CLI authenticates both a face and a voice before revealing the customer's
+latest transaction and product recommendation. Access is denied unless:
+
+1. The face is recognized above the configured confidence threshold.
+2. The voice is accepted by the voice model.
+3. The voice identity matches the recognized face.
+
+The sample identity-to-customer mapping is defined in `src/demo_app.py`;
+replace it with the application's database mapping for production use.
+
+Run an authorized transaction with the included Flavia recording:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py `
+  --image data\images\flavia.jpeg `
+  --voice "audio_pipeline\data\audio\flav1.mp4"
+```
+
+Run an interactive session:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py
+```
+
+Run the denied-access demonstration:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py --unauthorized-demo
+```
+
+### CLI options
+
+| Option | Description |
+|---|---|
+| `--image PATH` | Image used for face authentication. |
+| `--voice PATH` | Audio or video file used for voice authentication. |
+| `--voice-model PATH` | Optional custom voice model; defaults to `audio_pipeline\models\voice_model.pkl`. |
+| `--threshold VALUE` | Face confidence threshold; defaults to `0.60`. |
+| `--unauthorized-demo` | Runs a guaranteed denied-access demonstration. |
+
+Available sample recordings include:
+
+```text
+audio_pipeline\data\audio\flav1.mp4
+audio_pipeline\data\audio\flav2.mp4
+audio_pipeline\data\audio\plac1.mp4
+audio_pipeline\data\audio\plac2.mp4
+audio_pipeline\data\audio\shakira 1.mp4
+audio_pipeline\data\audio\shakira 2.mp4
+```
+
+If PowerShell reports that `ffmpeg` is not recognized, add the FFmpeg `bin`
+directory to the Windows User `Path`, reopen PowerShell, and run
+`ffmpeg -version` again. The scikit-learn `InconsistentVersionWarning` shown
+when loading the bundled voice model is a compatibility warning; the model
+was trained with scikit-learn 1.6.1.
+
+The same flow is available in `notebooks/secure_transaction_demo.ipynb`.
