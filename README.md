@@ -1,3 +1,8 @@
+
+# Image and face recognition pipeline
+
+
+
 # multi_data_processing
 
 Multimodal data preprocessing for a user identity and product recommendation system (Formative 2).
@@ -106,10 +111,67 @@ predict_product(999)     # raises ValueError: customer not in the dataset
 
 ## 2. Image processing and face model
 
-To be completed by the image processing owner.
+This section contains  image-processing and facial-recognition
+pipeline.
+
+## Image collection
+
+Place three images for every member in `data/images/`. The filename should
+start with the member name; optional trailing digits and an optional pose
+suffix are ignored when determining the member label. For example:
+
+```text
+flavia.jpeg
+flavia1.jpeg
+flavia3.jpeg
+```
+
+Supported formats are `.jpg`, `.jpeg`, `.png`, and `.heic`.
+
+## Build the image model
+
+```powershell
+python -m pip install -r requirements.txt
+$env:PYTHONPATH = "src"
+python scripts/build_face_model.py
+```
+
+The script:
+
+- extracts grayscale pixel and RGB histogram features;
+- creates rotate, flip, and grayscale augmentations;
+- saves features to `data/image_features.csv`;
+- trains a Random Forest face-recognition model;
+- saves the model to `models/face_model.pkl`; and
+- saves accuracy, weighted F1, and log loss to
+  `models/face_metrics.json`.
+
+## CLI integration contract
+
+The future CLI can authenticate an image without knowing the feature
+implementation:
+
+```python
+from image_pipeline import verify_face
+
+result = verify_face("data/images/memberName_neutral.jpg")
+if not result["recognized"]:
+    print("Access denied")
+else:
+    print(result["userId"], result["confidence"])
+```
+
+`verify_face` returns `recognized`, `userId`, and `confidence`. The default
+recognition threshold is `0.60`.
 
 ## 3. Audio processing and voice model
 
+<<<<<<< HEAD
+The voice model is bundled under `audio_pipeline/` and verifies both
+classifier confidence and distance from the member's genuine recordings.
+The repository recordings are MP4 files under `audio_pipeline/data/audio/`;
+the audio track is converted to 16 kHz mono WAV by FFmpeg when the CLI runs.
+=======
 The voice check is the last step before a prediction is shown: the customer says an approval phrase, and the model must confirm that the voice belongs to a known member.
 
 ### Data
@@ -206,7 +268,83 @@ check_voice("clip.wav")                           # details: best match, confide
 ### Known issue: library versions
 
 The model was trained in Colab with scikit-learn 1.6.1, but `requirements.txt` pins 1.9.1. It loads and predicts, but scikit-learn warns that results may be invalid. Retrain the voice model with the pinned versions (run the notebook after `pip install -r requirements.txt`) so all three models use the same environment.
+>>>>>>> origin/main
 
-## 4. CLI app
+Install the Python dependencies from the repository root:
 
-To be completed. The app will run the face check, then the voice check, and call `predict_product(user_id)` for verified customers.
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+FFmpeg is also required for MP4 input. On Windows, install it with:
+
+```powershell
+winget install --id Gyan.FFmpeg.Shared -e
+```
+
+Close and reopen PowerShell after installation, then verify:
+
+```powershell
+ffmpeg -version
+```
+
+## 4. CLI and transaction demo
+
+The CLI authenticates both a face and a voice before revealing the customer's
+latest transaction and product recommendation. Access is denied unless:
+
+1. The face is recognized above the configured confidence threshold.
+2. The voice is accepted by the voice model.
+3. The voice identity matches the recognized face.
+
+The sample identity-to-customer mapping is defined in `src/demo_app.py`;
+replace it with the application's database mapping for production use.
+
+Run an authorized transaction with the included Flavia recording:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py `
+  --image data\images\flavia.jpeg `
+  --voice "audio_pipeline\data\audio\flav1.mp4"
+```
+
+Run an interactive session:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py
+```
+
+Run the denied-access demonstration:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\secure_cli.py --unauthorized-demo
+```
+
+### CLI options
+
+| Option | Description |
+|---|---|
+| `--image PATH` | Image used for face authentication. |
+| `--voice PATH` | Audio or video file used for voice authentication. |
+| `--voice-model PATH` | Optional custom voice model; defaults to `audio_pipeline\models\voice_model.pkl`. |
+| `--threshold VALUE` | Face confidence threshold; defaults to `0.60`. |
+| `--unauthorized-demo` | Runs a guaranteed denied-access demonstration. |
+
+Available sample recordings include:
+
+```text
+audio_pipeline\data\audio\flav1.mp4
+audio_pipeline\data\audio\flav2.mp4
+audio_pipeline\data\audio\plac1.mp4
+audio_pipeline\data\audio\plac2.mp4
+audio_pipeline\data\audio\shakira 1.mp4
+audio_pipeline\data\audio\shakira 2.mp4
+```
+
+If PowerShell reports that `ffmpeg` is not recognized, add the FFmpeg `bin`
+directory to the Windows User `Path`, reopen PowerShell, and run
+`ffmpeg -version` again. The scikit-learn `InconsistentVersionWarning` shown
+when loading the bundled voice model is a compatibility warning; the model
+was trained with scikit-learn 1.6.1.
+
+The same flow is available in `notebooks/secure_transaction_demo.ipynb`.
