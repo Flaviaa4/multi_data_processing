@@ -166,10 +166,109 @@ recognition threshold is `0.60`.
 
 ## 3. Audio processing and voice model
 
+<<<<<<< HEAD
 The voice model is bundled under `audio_pipeline/` and verifies both
 classifier confidence and distance from the member's genuine recordings.
 The repository recordings are MP4 files under `audio_pipeline/data/audio/`;
 the audio track is converted to 16 kHz mono WAV by FFmpeg when the CLI runs.
+=======
+The voice check is the last step before a prediction is shown: the customer says an approval phrase, and the model must confirm that the voice belongs to a known member.
+
+### Data
+
+| File | Speaker | Phrase |
+|---|---|---|
+| `audio_pipeline/data/audio/flav1.mp4`, `flav2.mp4` | flavienne | "Yes, approve", "Confirm transaction" |
+| `audio_pipeline/data/audio/plac1.mp4`, `plac2.mp4` | Placide | "Yes, approve", "Confirm transaction" |
+| `audio_pipeline/data/audio/shakira 1.mp4`, `shakira 2.mp4` | shakira | "Yes, approve", "Confirm transaction" |
+| `audio_pipeline/data/audio/unauthorized/unauthorized_friend_approve.mp4`, `..._confirm.mp4` | someone outside the group | both phrases, for the unauthorized test |
+
+Each member recorded each phrase once (6 recordings). All members say the same words, so the model has to tell them apart by voice, not by what is said.
+
+### Pipeline
+
+1. **Loading.** Phone recordings are converted to 16 kHz mono WAV with ffmpeg, silence at the start and end is trimmed (30 dB below peak), and each clip is peak-normalised. The notebook renames `<name>1` to `<name>_approve_1` and `<name>2` to `<name>_confirm_1`.
+2. **Visualisation.** A waveform and a mel spectrogram for each member and phrase (`figures/audio_waveforms_spectrograms.png`). The measured differences between voices:
+
+    | Member | Median pitch (Hz) | Spectral centroid (Hz) | Roll-off (Hz) | RMS energy | Mean duration (s) |
+    |---|---|---|---|---|---|
+    | flav | 196 | 2,176 | 4,079 | 0.082 | 1.91 |
+    | plac | 73 | 1,344 | 2,892 | 0.042 | 3.91 |
+    | shakira | 169 | 1,123 | 1,983 | 0.173 | 1.30 |
+
+    flav has the highest and brightest voice, plac the lowest pitch and the slowest delivery, and shakira the loudest and shortest recordings. These differences are what the features capture.
+3. **Augmentation.** Six augmentations per recording (`figures/audio_augmentations.png`), giving 7 versions of each clip:
+
+    | Augmentation | Simulates |
+    |---|---|
+    | `pitch_up`, `pitch_down` (±1 semitone) | a slightly higher or lower voice; kept small because pitch identifies the speaker |
+    | `stretch_fast` (×1.15), `stretch_slow` (×0.87) | speaking faster or slower |
+    | `noise` (white noise, 20 dB SNR) | a noisier room |
+    | `gain_shift` (60% volume, up to 0.2 s delay) | speaking quieter or starting later |
+
+4. **Features.** 50 features per clip, saved in `audio_pipeline/data/audio_features.csv` (42 rows: 6 recordings × 7 versions): MFCC 1–13 mean and standard deviation, delta-MFCC means, spectral roll-off, centroid and bandwidth, zero-crossing rate, RMS energy and duration. `clip_id` links each augmented row to its original recording.
+5. **Modeling.** Logistic Regression (C = 0.1, 1, 10) and Random Forest (300 trees, leaf size 1 or 3), each a sklearn `Pipeline` with a scaler. They are evaluated by **leave one recording out**: each original recording is held out in turn, *with all its augmented copies removed from training*, so the model is never tested on a near-copy of a training clip. The model with the lowest log loss is refit on all 42 clips and saved.
+6. **Accept or reject.** A classifier trained on three people always answers with one of the three, so a voice is accepted only if both checks pass:
+    - the highest class probability is at least **0.55**, and
+    - the clip is close to one of that member's own recordings: the nearest-neighbour distance on the MFCC features is at most a **radius of 8.13**, the largest distance between a member's held-out recording and their other recordings, plus a 10% margin.
+
+### Results
+
+Leave-one-recording-out, on the 6 held-out original recordings:
+
+| Model | Accuracy | Macro F1 | Log loss | Genuine accept rate | Accuracy on augmented clips |
+|---|---|---|---|---|---|
+| Logistic Regression, C=10 (selected) | 1.00 | 1.00 | 0.159 | 0.67 | 0.89 |
+| Logistic Regression, C=1 | 1.00 | 1.00 | 0.323 | 0.67 | 0.83 |
+| Logistic Regression, C=0.1 | 0.83 | 0.82 | 0.555 | 0.50 | 0.72 |
+| Random Forest, 300 trees | 1.00 | 1.00 | 0.709 | 0.17 | 0.81 |
+| Random Forest, 300 trees, leaf=3 | 1.00 | 1.00 | 0.736 | 0.00 | 0.81 |
+
+*Genuine accept rate* is the share of held-out recordings that pass both checks above. Logistic Regression gives better-calibrated probabilities than Random Forest, which is why it passes the confidence check more often.
+
+Unauthorized attempts (`figures/voice_model_evaluation.png`, notebook section 7):
+
+| Test | Result |
+|---|---|
+| Stranger says "Yes, approve" | **accepted** as shakira (confidence 0.66, distance 6.89) |
+| Stranger says "Confirm transaction" | **accepted** as plac (confidence 0.71, distance 4.94) |
+| Member's voice claimed as another member (3 cases) | 3 of 3 rejected |
+
+The model identifies which member is speaking (accuracy 1.00), but the stranger check does not work yet: both stranger clips were accepted, and 2 of the 6 genuine recordings would be rejected. The cause is the data. With one recording per phrase, the only same-speaker comparison available is "approve" against "confirm", which differ a lot, so the radius has to be wide (8.13) and the stranger's distances (4.94 and 6.89) fall inside it. Six recordings are also too few for the accuracy figures to be reliable. The fix is to record each phrase 2–3 more times per member and re-run the notebook. Same-phrase comparisons then calibrate a tighter radius.
+
+### How to run
+
+Run `audio_pipeline/audio_pipeline.ipynb` in Google Colab: run the upload cell (`UPLOAD_NOW = True`) to add the recordings, then *Runtime → Run all*. Name stranger files `unauthorized_<name>.<ext>` and they are moved to the `unauthorized/` folder. The last cells build `voice_app_bundle.zip` and back up the model, features and figures to `My Drive/audio_pipeline/`.
+
+Verify a voice from Python, run from the repository root (non-WAV files need ffmpeg):
+
+```python
+from audio_pipeline.src.voice import verify_voice, check_voice
+
+verify_voice("clip.wav")                          # "flav", "plac", "shakira", or None if rejected
+verify_voice("clip.wav", expected_member="flav")  # None unless the voice is flav's: use the name from the face check
+check_voice("clip.wav")                           # details: best match, confidence, distance, reason
+```
+
+`verify_voice` loads `audio_pipeline/models/voice_model.pkl` once. Passing `expected_member` is what links the voice step to the face step: the voice must belong to the same person the face model recognised.
+
+### Files
+
+| File | Purpose |
+|---|---|
+| `audio_pipeline/audio_pipeline.ipynb` | full audio walkthrough: plots, augmentation, features, model comparison, unauthorized tests |
+| `audio_pipeline/src/audio_processing.py` | loading, conversion, augmentation, feature extraction |
+| `audio_pipeline/src/voice.py` | model comparison, training, `verify_voice()` and `check_voice()` |
+| `audio_pipeline/data/audio_features.csv` | features of every recording and augmentation |
+| `audio_pipeline/models/voice_model.pkl` | trained model with its thresholds |
+| `audio_pipeline/models/voice_model_info.json` | members, thresholds, scores and library versions |
+| `audio_pipeline/voice_app/` | copy of the model and code for the CLI app |
+| `audio_pipeline/figures/` | waveforms and spectrograms, augmentations, feature overview, evaluation |
+
+### Known issue: library versions
+
+The model was trained in Colab with scikit-learn 1.6.1, but `requirements.txt` pins 1.9.1. It loads and predicts, but scikit-learn warns that results may be invalid. Retrain the voice model with the pinned versions (run the notebook after `pip install -r requirements.txt`) so all three models use the same environment.
+>>>>>>> origin/main
 
 Install the Python dependencies from the repository root:
 
