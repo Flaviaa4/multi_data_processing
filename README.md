@@ -166,12 +166,6 @@ recognition threshold is `0.60`.
 
 ## 3. Audio processing and voice model
 
-<<<<<<< HEAD
-The voice model is bundled under `audio_pipeline/` and verifies both
-classifier confidence and distance from the member's genuine recordings.
-The repository recordings are MP4 files under `audio_pipeline/data/audio/`;
-the audio track is converted to 16 kHz mono WAV by FFmpeg when the CLI runs.
-=======
 The voice check is the last step before a prediction is shown: the customer says an approval phrase, and the model must confirm that the voice belongs to a known member.
 
 ### Data
@@ -268,7 +262,6 @@ check_voice("clip.wav")                           # details: best match, confide
 ### Known issue: library versions
 
 The model was trained in Colab with scikit-learn 1.6.1, but `requirements.txt` pins 1.9.1. It loads and predicts, but scikit-learn warns that results may be invalid. Retrain the voice model with the pinned versions (run the notebook after `pip install -r requirements.txt`) so all three models use the same environment.
->>>>>>> origin/main
 
 Install the Python dependencies from the repository root:
 
