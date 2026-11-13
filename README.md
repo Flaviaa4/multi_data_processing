@@ -114,6 +114,11 @@ predict_product(999)     # raises ValueError: customer not in the dataset
 This section contains  image-processing and facial-recognition
 pipeline.
 
+The complete walkthrough is available in
+[`notebooks/image_pipeline.ipynb`](notebooks/image_pipeline.ipynb). It builds
+the feature CSV and face model, reports metrics, and tests authorized and
+unauthorized images.
+
 ## Image collection
 
 Place three images for every member in `data/images/`. The filename should
